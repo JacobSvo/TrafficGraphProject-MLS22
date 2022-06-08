@@ -180,10 +180,10 @@ def get_accuracy_train(train_input, weights_input, hidden, weights_hidden, resul
         result = forward_propagate(x, weights_input, hidden, weights_hidden, result)
         actual = labels[idx_gat]
         p = result[0]
-        if p > 1:
-            p = 1
-        else:
+        if p <= 0.5:
             p = 0
+        else:
+            p = 1
         if p == actual:
             correct += 1.0
         else:
@@ -192,61 +192,57 @@ def get_accuracy_train(train_input, weights_input, hidden, weights_hidden, resul
 
 
 if __name__ == '__main__':
-    # global MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT
-    # global MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID
-    # global MATRIX_TILE_HID
-    # global MATRIX_TILE_IN
     # format_csv('train.csv')
     # format_csv('test.csv')
     train_data, labels_train = get_train_data()  # data
     test_data, passenger_ids = get_test_data()
-    # print(train_data)
-    # weights_hidden, weights_output = get_weights(train_data)  # weights
-    # prev_weights_hidden = np.copy(weights_hidden)
-    # prev_weights_output = np.copy(weights_output)
-    # layer_hidden = init_hidden()  # nodes in layers
-    # layer_out = np.zeros(1, dtype=float)
-    # for epoch in range(0, 50):
-    #     for idx, item in enumerate(train_data):
-    #         # forward propagate
-    #         layer_out = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
-    #         predicted = layer_out[0]
-    #         # calculate deltas
-    #         delta_h, delta_o = calculate_deltas(labels_train[idx], layer_hidden, layer_out, weights_output)
-    #         #
-    #         # WEIGHTS
-    #         #
-    #         # 1.  HIDDEN TO OUT
-    #         #
-    #         # calculate Delta_weight_kj = eta * delta_k * hidden_j + momentum * delta_previous_weight_kj
-    #         temp_output_vector = NUM_ETA * delta_o  # ETA * Delta_K for left term.
-    #         # Right hand momentum * prev delta_weights.
-    #         MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT)
-    #         # temp matrix to begin bulk calculations\
-    #         MATRIX_TILE_HID = np.tile(temp_output_vector, (NUM_NODES_HIDDEN, 1))  # N + 1 x 10 matrix
-    #         MATRIX_TILE_HID = np.transpose(MATRIX_TILE_HID)  # 10 x N + 1
-    #         MATRIX_TILE_HID = np.multiply(layer_hidden, MATRIX_TILE_HID)  # matrix of eta * delta_k * h_j
-    #         # eta * delta_k * h_j + a * delta_w_kj
-    #         MATRIX_TILE_HID = MATRIX_TILE_HID + MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT
-    #         # assignments
-    #         weights_output = prev_weights_output + MATRIX_TILE_HID  # 10 x (N+1) + (10 x N+1)
-    #         MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT = MATRIX_TILE_HID  # update delta weights matrix
-    #         #
-    #         # 2.  INPUT TO HIDDEN
-    #         #
-    #         temp_output_vector = NUM_ETA * layer_hidden[1:]  # Left term calculation.
-    #         # finish right term of formula.
-    #         MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID)  # N x 9
-    #         # create a temp matrix for final addition operation.
-    #         MATRIX_TILE_IN = np.tile(temp_output_vector, (9, 1))  # 785 x N
-    #         MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)  # N x 785
-    #         # finish the left term of the formula (eta * deltaj * x_i)
-    #         MATRIX_TILE_IN = np.multiply(train_data[idx], MATRIX_TILE_IN)
-    #         # with the right term and left term calculated, sum them together to produce the new delta weight matrix.
-    #         MATRIX_TILE_IN = MATRIX_TILE_IN + MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID  # add momentum matrix
-    #         # assignments
-    #         weights_hidden = prev_weights_hidden + MATRIX_TILE_IN  # update weights
-    #         MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID = MATRIX_TILE_IN  # update previous delta weights
-    #
-    #     accur_train = get_accuracy_train(train_data, weights_hidden, layer_hidden, weights_output, layer_out, labels_train)
-    #     print(accur_train)
+    print(train_data)
+    weights_hidden, weights_output = get_weights(train_data)  # weights
+    prev_weights_hidden = np.copy(weights_hidden)
+    prev_weights_output = np.copy(weights_output)
+    layer_hidden = init_hidden()  # nodes in layers
+    layer_out = np.zeros(1, dtype=float)
+    for epoch in range(0, 50):
+        for idx, item in enumerate(train_data):
+            # forward propagate
+            layer_out = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
+            predicted = layer_out[0]
+            # calculate deltas
+            delta_h, delta_o = calculate_deltas(labels_train[idx], layer_hidden, layer_out, weights_output)
+            #
+            # WEIGHTS
+            #
+            # 1.  HIDDEN TO OUT
+            #
+            # calculate Delta_weight_kj = eta * delta_k * hidden_j + momentum * delta_previous_weight_kj
+            temp_output_vector = NUM_ETA * delta_o  # ETA * Delta_K for left term.
+            # Right hand momentum * prev delta_weights.
+            MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT)
+            # temp matrix to begin bulk calculations\
+            MATRIX_TILE_HID = np.tile(temp_output_vector, (NUM_NODES_HIDDEN, 1))  # N + 1 x 10 matrix
+            MATRIX_TILE_HID = np.transpose(MATRIX_TILE_HID)  # 10 x N + 1
+            MATRIX_TILE_HID = np.multiply(layer_hidden, MATRIX_TILE_HID)  # matrix of eta * delta_k * h_j
+            # eta * delta_k * h_j + a * delta_w_kj
+            MATRIX_TILE_HID = MATRIX_TILE_HID + MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT
+            # assignments
+            weights_output = prev_weights_output + MATRIX_TILE_HID  # 10 x (N+1) + (10 x N+1)
+            MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT = MATRIX_TILE_HID  # update delta weights matrix
+            #
+            # 2.  INPUT TO HIDDEN
+            #
+            temp_output_vector = NUM_ETA * layer_hidden[1:]  # Left term calculation.
+            # finish right term of formula.
+            MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID)  # N x 9
+            # create a temp matrix for final addition operation.
+            MATRIX_TILE_IN = np.tile(temp_output_vector, (9, 1))  # 785 x N
+            MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)  # N x 785
+            # finish the left term of the formula (eta * deltaj * x_i)
+            MATRIX_TILE_IN = np.multiply(train_data[idx], MATRIX_TILE_IN)
+            # with the right term and left term calculated, sum them together to produce the new delta weight matrix.
+            MATRIX_TILE_IN = MATRIX_TILE_IN + MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID  # add momentum matrix
+            # assignments
+            weights_hidden = prev_weights_hidden + MATRIX_TILE_IN  # update weights
+            MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID = MATRIX_TILE_IN  # update previous delta weights
+
+        accur_train = get_accuracy_train(train_data, weights_hidden, layer_hidden, weights_output, layer_out, labels_train)
+        print(accur_train)
