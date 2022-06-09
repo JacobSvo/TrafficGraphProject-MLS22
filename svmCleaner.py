@@ -72,4 +72,3 @@ def deleteNames(data):
     data = np.delete(data, pos, 1)
     return data
 
-driver()
