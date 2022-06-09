@@ -59,9 +59,9 @@ def cleanData(data):
     return data
 
 def driver (train_data,test_data):
-    global train_data, test_data
     train_data = cleanData(train_data)
     test_data = cleanData(test_data)
+    return train_data,test_data
 
 def deleteNames(data):
 
