@@ -58,7 +58,7 @@ def cleanData(data):
                 data[i][4] = np.random.uniform(femaleMin, high=femaleMax)
     return data
 
-def driver ():
+def driver (train_data,test_data):
     global train_data, test_data
     train_data = cleanData(train_data)
     test_data = cleanData(test_data)
