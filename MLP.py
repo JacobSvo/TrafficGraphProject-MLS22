@@ -65,12 +65,13 @@ def get_train_data():
 
     # scale the data
     td = td * 1/10
+    td[:, 0] = td[:, 0] * 10  # restore bias
     td[:, 3] = td[:, 3] * 1/10  # age in range 0-100
     td[:, 6] = td[:, 6] * 1/100  # fare in range 0-200
 
     for idx,itm in enumerate(td):  # assert that all date is scaled from 0 to 1
         for i, m in enumerate(itm):
-            assert(m < 1.0)
+            assert(m <= 1.0)
     return td, labels_train
 
 
@@ -164,13 +165,15 @@ def calculate_deltas(ground_truth, hid_nodes, out_node, w_h_to_o):
 
 
 def forward_propagate(example, w_h, l_hid, w_o, l_out):
+    assert(example[0] == 1.0)
+    assert(l_hid[0] == 1.0)
     l_hid[1:] = w_h.dot(example)
-    # l_hid[1:] = relu(l_hid[1:])
-    l_hid[1:] = sigmoid(l_hid[1:])
+    # l_hid[1:] = sigmoid(l_hid[1:])
+    l_hid[1:] = relu(l_hid[1:])
     l_out = w_o.dot(l_hid)
-    # l_out = relu(l_out)
-    l_out = sigmoid(l_out)
-    return l_out
+    # l_out = sigmoid(l_out)
+    l_out = relu(l_out)
+    return l_out, l_hid
 
 
 def get_accuracy_train(train_input, weights_input, hidden, weights_hidden, result, labels):
@@ -196,7 +199,6 @@ if __name__ == '__main__':
     # format_csv('test.csv')
     train_data, labels_train = get_train_data()  # data
     test_data, passenger_ids = get_test_data()
-    print(train_data)
     weights_hidden, weights_output = get_weights(train_data)  # weights
     prev_weights_hidden = np.copy(weights_hidden)
     prev_weights_output = np.copy(weights_output)
@@ -205,7 +207,7 @@ if __name__ == '__main__':
     for epoch in range(0, 50):
         for idx, item in enumerate(train_data):
             # forward propagate
-            layer_out = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
+            layer_out, layer_hidden = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
             predicted = layer_out[0]
             # calculate deltas
             delta_h, delta_o = calculate_deltas(labels_train[idx], layer_hidden, layer_out, weights_output)
@@ -218,7 +220,7 @@ if __name__ == '__main__':
             temp_output_vector = NUM_ETA * delta_o  # ETA * Delta_K for left term.
             # Right hand momentum * prev delta_weights.
             MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_HID_TO_OUT)
-            # temp matrix to begin bulk calculations\
+            # temp matrix to begin bulk calculations
             MATRIX_TILE_HID = np.tile(temp_output_vector, (NUM_NODES_HIDDEN, 1))  # N + 1 x 10 matrix
             MATRIX_TILE_HID = np.transpose(MATRIX_TILE_HID)  # 10 x N + 1
             MATRIX_TILE_HID = np.multiply(layer_hidden, MATRIX_TILE_HID)  # matrix of eta * delta_k * h_j
@@ -230,14 +232,14 @@ if __name__ == '__main__':
             #
             # 2.  INPUT TO HIDDEN
             #
-            temp_output_vector = NUM_ETA * layer_hidden[1:]  # Left term calculation.
+            temp_output_vector = NUM_ETA * delta_h[1:]  # Left term calculation for eta * deltaj.  (skips bias delta)
             # finish right term of formula.
             MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID = np.multiply(NUM_MOMENTUM, MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID)  # N x 9
             # create a temp matrix for final addition operation.
-            MATRIX_TILE_IN = np.tile(temp_output_vector, (9, 1))  # 785 x N
-            MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)  # N x 785
+            MATRIX_TILE_IN = np.tile(temp_output_vector, (9, 1))  # 9 x N
+            MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)  # N x 9
             # finish the left term of the formula (eta * deltaj * x_i)
-            MATRIX_TILE_IN = np.multiply(train_data[idx], MATRIX_TILE_IN)
+            MATRIX_TILE_IN = np.multiply(MATRIX_TILE_IN, train_data[idx])
             # with the right term and left term calculated, sum them together to produce the new delta weight matrix.
             MATRIX_TILE_IN = MATRIX_TILE_IN + MATRIX_OF_PREV_DELTA_WEIGHTS_IN_TO_HID  # add momentum matrix
             # assignments
