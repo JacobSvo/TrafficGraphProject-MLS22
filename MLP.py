@@ -110,7 +110,6 @@ def get_test_data():
     test_data = np.delete(test_data, 1, 1)
 
     # scale the data
-    # scale the data
     test_data = test_data * 1 / 10
     test_data[:, 0] = test_data[:, 0] * 10  # restore bias
     test_data[:, 3] = test_data[:, 3] * 1 / 10  # age in range 0-100
