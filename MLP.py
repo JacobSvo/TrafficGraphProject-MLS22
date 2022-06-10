@@ -1,6 +1,13 @@
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pandas as pd
+# from sklearn.neural_network import MLPClassifier
+import warnings
+import matplotlib.pyplot as plt
+from sklearn.datasets import fetch_openml
+from sklearn.exceptions import ConvergenceWarning
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import confusion_matrix
 
 # PROGRAM DEFINITIONS
 PANDAS_AXIS_COLUMN = 1
@@ -72,6 +79,10 @@ def get_train_data():
     for idx,itm in enumerate(td):  # assert that all date is scaled from 0 to 1
         for i, m in enumerate(itm):
             assert(m <= 1.0)
+
+    # nonzero the data.
+    td[:, 1:] = td[:, 1:] + 0.00001
+    print(td[0])
     return td, labels_train
 
 
@@ -87,7 +98,7 @@ def get_test_data():
     """
     # for test_data, just add the bias to the first column
     test_data = np.loadtxt('titanic/pp_test.csv', delimiter=',', dtype=float, skiprows=1)
-    test_data = np.delete(test_data, 0, 1)
+    # test_data = np.delete(test_data, 0, 1)
     np.savetxt("titanic/raw_test_data.csv", test_data, delimiter=",")
     # add bias
     test_data[:, 0] = np.ones(len(test_data[:, 0]))
@@ -99,9 +110,15 @@ def get_test_data():
     test_data = np.delete(test_data, 1, 1)
 
     # scale the data
-    # multiply matrix by 1/10
-    # divide fare and age by another 10
+    # scale the data
+    test_data = test_data * 1 / 10
+    test_data[:, 0] = test_data[:, 0] * 10  # restore bias
+    test_data[:, 3] = test_data[:, 3] * 1 / 10  # age in range 0-100
+    test_data[:, 6] = test_data[:, 6] * 1 / 100  # fare in range 0-200
 
+    # nonzero the data.
+    test_data[:, 1:] = test_data[:, 1:] + 0.00001
+    print(test_data[0])
     return test_data, labels_test
 
 
@@ -168,11 +185,11 @@ def forward_propagate(example, w_h, l_hid, w_o, l_out):
     assert(example[0] == 1.0)
     assert(l_hid[0] == 1.0)
     l_hid[1:] = w_h.dot(example)
-    # l_hid[1:] = sigmoid(l_hid[1:])
-    l_hid[1:] = relu(l_hid[1:])
+    l_hid[1:] = sigmoid(l_hid[1:])
+    # l_hid[1:] = relu(l_hid[1:])
     l_out = w_o.dot(l_hid)
-    # l_out = sigmoid(l_out)
-    l_out = relu(l_out)
+    l_out = sigmoid(l_out)
+    # l_out = relu(l_out)
     return l_out, l_hid
 
 
@@ -183,10 +200,10 @@ def get_accuracy_train(train_input, weights_input, hidden, weights_hidden, resul
         result, unused = forward_propagate(x, weights_input, hidden, weights_hidden, result)
         actual = labels[idx_gat]
         p = result[0]
-        if p > 0:
-            p = 1
-        else:
+        if p < 0:
             p = 0
+        else:
+            p = 1
         if p == actual:
             correct += 1.0
         else:
@@ -195,54 +212,92 @@ def get_accuracy_train(train_input, weights_input, hidden, weights_hidden, resul
 
 
 if __name__ == '__main__':
+    print("useless")
     # format_csv('train.csv')
     # format_csv('test.csv')
-    train_data, labels_train = get_train_data()  # data
-    test_data, passenger_ids = get_test_data()
-    weights_hidden, weights_output = get_weights(train_data)  # weights
-    prev_delta_w_output = np.zeros((NUM_NODES_OUTPUT, NUM_NODES_HIDDEN), dtype=float)  # 10 x N + 1 matrix
-    prev_delta_w_hidden = np.zeros((N, 9), dtype=float)  # N x 9 matrix
-    layer_hidden = init_hidden()  # nodes in layers
-    layer_out = np.zeros(1, dtype=float)
-    for epoch in range(0, 50):
-        for idx, item in enumerate(train_data):
-            # FORWARD PROPAGATE
-            layer_out, layer_hidden = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
-            predicted = layer_out[0]
-            # DELTAS
-            delta_h, delta_o = calculate_deltas(labels_train[idx], layer_hidden, layer_out, weights_output)
-            #
-            # WEIGHT UPDATES
-            #
-            # 1.  HIDDEN TO OUT
-            #
-            # calculate Delta_weight_kj = eta * delta_k * hidden_j + momentum * delta_previous_weight_kj
-            temp_vector = NUM_ETA * delta_o  # ETA * Delta_K for left term.
-            # momentum * prev delta_weights.
-            prev_delta_w_output = np.multiply(NUM_MOMENTUM, prev_delta_w_output)
-            # temp
-            MATRIX_TILE_HID = np.tile(temp_vector, (NUM_NODES_HIDDEN, 1))
-            MATRIX_TILE_HID = np.transpose(MATRIX_TILE_HID)
-            MATRIX_TILE_HID = np.multiply(layer_hidden, MATRIX_TILE_HID)  # eta * delta_k * h_j
-            MATRIX_TILE_HID = MATRIX_TILE_HID + prev_delta_w_output # eta * delta_k * h_j + a * delta_w_kj
-            # assignments
-            weights_output = prev_delta_w_output + MATRIX_TILE_HID  # updated weights
-            prev_delta_w_output = MATRIX_TILE_HID  # update delta weights
-            #
-            # 2.  INPUT TO HIDDEN
-            #
-            temp_vector = NUM_ETA * delta_h[1:]  # eta * deltaj.  (skips bias delta)
-            # momentum * prev delta weights
-            prev_delta_w_hidden = np.multiply(NUM_MOMENTUM, prev_delta_w_hidden)
-            MATRIX_TILE_IN = np.tile(temp_vector, (9, 1))
-            MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)
-            # finish the left term of the formula (eta * deltaj * x_i)
-            MATRIX_TILE_IN = np.multiply(MATRIX_TILE_IN, train_data[idx])
-            # with the right term and left term calculated, sum them together to produce the new delta weight matrix.
-            MATRIX_TILE_IN = MATRIX_TILE_IN + prev_delta_w_hidden  # add momentum matrix
-            # assignments
-            weights_hidden = prev_delta_w_hidden + MATRIX_TILE_IN  # update weights
-            prev_delta_w_hidden = MATRIX_TILE_IN  # update previous delta weights
+    # train_data, labels_train = get_train_data()  # data
+    # test_data, passenger_ids = get_test_data()
+    # weights_hidden, weights_output = get_weights(train_data)  # weights
+    # prev_delta_w_output = np.zeros((NUM_NODES_OUTPUT, NUM_NODES_HIDDEN), dtype=float)  # 10 x N + 1 matrix
+    # prev_delta_w_hidden = np.zeros((N, 9), dtype=float)  # N x 9 matrix
+    # layer_hidden = init_hidden()  # nodes in layers
+    # layer_out = np.zeros(1, dtype=float)
+    # for epoch in range(0, 50):
+    #     for idx, item in enumerate(train_data):
+    #         # FORWARD PROPAGATE
+    #         layer_out, layer_hidden = forward_propagate(train_data[idx], weights_hidden, layer_hidden, weights_output, layer_out)
+    #         predicted = layer_out[0]
+    #         # DELTAS
+    #         delta_h, delta_o = calculate_deltas(labels_train[idx], layer_hidden, layer_out, weights_output)
+    #         #
+    #         # WEIGHT UPDATES
+    #         #
+    #         # 1.  HIDDEN TO OUT
+    #         #
+    #         # calculate Delta_weight_kj = eta * delta_k * hidden_j + momentum * delta_previous_weight_kj
+    #         temp_vector = NUM_ETA * delta_o  # ETA * Delta_K for left term.
+    #         # momentum * prev delta_weights.
+    #         prev_delta_w_output = np.multiply(NUM_MOMENTUM, prev_delta_w_output)
+    #         # temp
+    #         MATRIX_TILE_HID = np.tile(temp_vector, (NUM_NODES_HIDDEN, 1))
+    #         MATRIX_TILE_HID = np.transpose(MATRIX_TILE_HID)
+    #         MATRIX_TILE_HID = np.multiply(layer_hidden, MATRIX_TILE_HID)  # eta * delta_k * h_j
+    #         MATRIX_TILE_HID = MATRIX_TILE_HID + prev_delta_w_output # eta * delta_k * h_j + a * delta_w_kj
+    #         # assignments
+    #         weights_output = prev_delta_w_output + MATRIX_TILE_HID  # updated weights
+    #         prev_delta_w_output = MATRIX_TILE_HID  # update delta weights
+    #         #
+    #         # 2.  INPUT TO HIDDEN
+    #         #
+    #         temp_vector = NUM_ETA * delta_h[1:]  # eta * deltaj.  (skips bias delta)
+    #         # momentum * prev delta weights
+    #         prev_delta_w_hidden = np.multiply(NUM_MOMENTUM, prev_delta_w_hidden)
+    #         MATRIX_TILE_IN = np.tile(temp_vector, (9, 1))
+    #         MATRIX_TILE_IN = np.transpose(MATRIX_TILE_IN)
+    #         # finish the left term of the formula (eta * deltaj * x_i)
+    #         MATRIX_TILE_IN = np.multiply(MATRIX_TILE_IN, train_data[idx])
+    #         # with the right term and left term calculated, sum them together to produce the new delta weight matrix.
+    #         MATRIX_TILE_IN = MATRIX_TILE_IN + prev_delta_w_hidden  # add momentum matrix
+    #         # assignments
+    #         weights_hidden = prev_delta_w_hidden + MATRIX_TILE_IN  # update weights
+    #         prev_delta_w_hidden = MATRIX_TILE_IN  # update previous delta weights
+    #
+    #     accur_train = get_accuracy_train(train_data, weights_hidden, layer_hidden, weights_output, layer_out, labels_train)
+    #     print(accur_train)
 
-        accur_train = get_accuracy_train(train_data, weights_hidden, layer_hidden, weights_output, layer_out, labels_train)
-        print(accur_train)
+
+# MLP implementation lifted from code taken from https://scikit-learn.org/stable/modules/neural_networks_supervised.html
+train_data, labels = get_train_data()
+test_data, ids = get_test_data()
+mlp = MLPClassifier(
+    hidden_layer_sizes=(100,),
+    max_iter=50,
+    alpha=1e-4,
+    solver="sgd",
+    verbose=10,
+    random_state=1,
+    learning_rate_init=0.2,
+)
+
+with warnings.catch_warnings():
+    print("whatever")
+    warnings.filterwarnings("ignore", category=ConvergenceWarning, module="sklearn")
+    mlp.fit(train_data, labels)
+
+# get the harsh accuracy on the training data for 50 epochs.
+harsh_avg = mlp.score(train_data, labels)
+print("Training set score: %f" % harsh_avg)
+# get recall and precision
+pred_train = mlp.predict(train_data)
+cm = confusion_matrix(labels, pred_train)
+print("CONFUSION MATRIX FOR TRAIN DATA\nS = Survived")
+print("\t!S\tS")
+print(cm)
+# get predictions for test_data
+pred = mlp.predict(test_data)
+submission = np.zeros((len(test_data), 2), dtype=float)
+submission[:, 0] = ids
+submission[:, 1] = pred
+# package it up to submit to Kaggle
+np.savetxt('submission.csv', submission, delimiter=',', fmt='%i')
+
